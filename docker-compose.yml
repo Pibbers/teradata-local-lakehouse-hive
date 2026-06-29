@@ -1,0 +1,138 @@
+name: td-local-lakehouse-hive
+
+# ============================================================
+# Teradata Local Lakehouse using Hive metastore — Docker Compose
+# ============================================================
+# Start foundation only:   docker compose up -d minio minio-init
+# Start all services:      docker compose up -d
+# Teradata database runs externally at TD_HOST (see .env)
+# ============================================================
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+networks:
+  demo-net:
+    driver: bridge
+
+volumes:
+  minio-data:
+  mysql-data:
+
+services:
+  # ─── MinIO (S3-compatible object store) ────────────────────
+  minio:
+    image: minio/minio:latest
+    hostname: minio-server
+    networks: [demo-net]
+    restart: unless-stopped
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging: *default-logging      
+
+  # ─── MinIO bucket initialisation ───────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    networks: [demo-net]
+    container_name: minio-init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio-server:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}
+        mc ls local/raw || mc mb local/raw
+        mc ls local/iceberg || mc mb local/iceberg
+        mc anonymous set download local/raw || true
+        mc anonymous set download local/iceberg || true
+
+  # ─── MySQL (Hive Metastore backend) ────────────────────────
+  mysql:
+    image: mysql:8.2
+    hostname: mysql
+    networks: [demo-net]
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-rootpassword}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-metastore}"
+      MYSQL_USER: "${MYSQL_USER:-hive}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-hive}"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "--password=${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  # ─── Hive Metastore (Iceberg catalog) ──────────────────────
+  hive-metastore:
+    image: docker-hive-metastore:latest
+    hostname: hive-metastore
+    networks: [demo-net]
+    ports:
+      - "9083:9083"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      HIVE_DB_HOSTNAME: "${HIVE_DB_HOSTNAME:-mysql}"
+      HIVE_DB_NAME: "${HIVE_DB_NAME:-metastore}"
+      HIVE_DB_USER: "${HIVE_DB_USER:-hive}"
+      HIVE_DB_PASSWORD: "${HIVE_DB_PASSWORD:-hive}"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo >/dev/tcp/localhost/9083' 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    logging: *default-logging
+
+  # ─── TPT (Teradata Parallel Transporter) ───────────────────
+  tpt:
+    image: teradata/tpt:latest
+    hostname: tpt
+    networks: [demo-net]
+    environment:
+      accept_license: "Y"
+      TD_HOST: "${TD_HOST}"
+      TD_USER: "${TD_USER}"
+      TD_PASSWORD: "${TD_PASSWORD}"
+      TD_DATABASE: "${TD_DATABASE:-demo_db}"
+      HOST_IP: "${HOST_IP}"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+    volumes:
+      - ./tpt/tbuild:/tpt/tbuild
+      - ./tpt/scripts:/tpt/scripts
+      - ./data:/tpt/data
+    entrypoint: ["/bin/bash"]
+    stdin_open: true
+    tty: true
+    restart: "no"

@@ -1,0 +1,6 @@
+# Environment — never commit real credentials
+.env
+
+# Editor
+.vscode/
+*.swp

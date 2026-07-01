@@ -137,27 +137,7 @@ docker compose down
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Host Machine                              │
-│                  (Docker Compose)                            │
-│                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │  MinIO       │    │  Hive        │    │  MySQL       │  │
-│  │  (S3-Store)  │────│  Metastore   │────│  (Metadata)  │  │
-│  └──────────────┘    └──────────────┘    └──────────────┘  │
-│         ▲                    ▲                              │
-│         │                    │           ┌──────────────┐  │
-│         └────────────────────┼───────────│  TPT / BTEQ  │  │
-│                              │           │  (SQL runner) │  │
-│                     demo-net (bridge)    └──────┬───────┘  │
-└─────────────────────────────────────────────────┼───────────┘
-                                                   │ (BTEQ / port 1025)
-┌─────────────────────────────────────────────────┼───────────┐
-│            Teradata Database (External)          │           │
-│         (Configured via TD_HOST, TD_USER, etc.) ◄           │
-└─────────────────────────────────────────────────────────────┘
-```
+![Architecture Diagram](docs/Local-Lakehouse-Docker.png)
 
 ## Project Structure
 

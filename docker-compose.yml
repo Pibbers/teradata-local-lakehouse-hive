@@ -91,7 +91,8 @@ services:
 
   # ─── Hive Metastore (Iceberg catalog) ──────────────────────
   hive-metastore:
-    image: docker-hive-metastore:latest
+    build:
+      context: docker/hive-metastore
     hostname: hive-metastore
     networks: [demo-net]
     ports:
@@ -106,6 +107,8 @@ services:
       HIVE_DB_NAME: "${HIVE_DB_NAME:-metastore}"
       HIVE_DB_USER: "${HIVE_DB_USER:-hive}"
       HIVE_DB_PASSWORD: "${HIVE_DB_PASSWORD:-hive}"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo >/dev/tcp/localhost/9083' 2>/dev/null || exit 1"]
       interval: 15s

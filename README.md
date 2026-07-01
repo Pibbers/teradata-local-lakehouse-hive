@@ -8,18 +8,28 @@ This project provides a containerized lakehouse foundation that integrates:
 - **Teradata Database** — External relational database (configured via `.env`)
 - **MinIO** — S3-compatible object storage for data lake files
 - **Hive Metastore** — MySQL-backed metadata repository for cataloging data lake tables
-- **TPT (Teradata Parallel Transporter)** — Tools and scripts for efficient data movement between systems
+- **TTU (Teradata Tools & Utilities)** — Tools and scripts for efficient data movement between systems including Teradata Parallel Transporter (TPT) and Teradata BTEQ
 
 ## Prerequisites
 
 - **Docker & Docker Compose** — [Install Docker](https://docs.docker.com/get-docker/)
+- **Python 3.9+** with pip — for the data generation and Iceberg setup scripts
 - **Teradata Database** — Running externally (on-premises, cloud, or VM)
 - **Host Machine IP** — Accessible from the Teradata system (for NOS foreign tables and OTF)
 
 
+## Running the Demo
+
+See [docs/demo-walkthrough.md](docs/demo-walkthrough.md) for a full explanation of each demo step, what objects are created, and what to look for in the output.
+
+```bash
+./run_demo.sh    # run the full demo end-to-end
+./reset_demo.sh  # tear down and re-run cleanly
+```
+
 ## Teradata Express setup
 
-If you are using [**Teradata Express (TDExpress v20)**](https://downloads.teradata.com/download/database/teradata-express/vmware) as the Teradata instance, additional one-time configuration is required to enable Open Table Format (OTF) support for Demos 3–5.
+If you are using [**Teradata Express (TDExpress v20)**](https://downloads.teradata.com/download/database/teradata-express/vmware) as the Teradata instance, additional one-time configuration is required to enable Open Table Format (OTF) support for Demos 05–06.
 
 See [docs/setup-td-express-20.md](docs/setup-td-express-20.md) for the full configuration guide, including:
 
@@ -27,9 +37,6 @@ See [docs/setup-td-express-20.md](docs/setup-td-express-20.md) for the full conf
 - NOS / object storage flags (HTTP mode, path-style S3 addressing)
 - Optimizer and pipeline performance flags
 - Step-by-step `dbscontrol` commands and validation queries
-
-
-
 
 ## Quick Start
 
@@ -46,33 +53,39 @@ nano .env  # or your preferred editor
 ### 2. Set Required Variables in `.env`
 
 ```env
-# Docker host IP (reachable from Teradata)
-HOST_IP=your-docker-host-ip
+# Docker host IP (reachable from Teradata — find with: ip addr show | grep '192.168')
+HOST_IP=<your-docker-host-ip>
 
 # Teradata credentials (external database)
-TD_HOST=your-teradata-host
-TD_USER=your_username
-TD_PASSWORD=your_password
-TD_DATABASE=default_database_name
+TD_HOST=<your-teradata-host>
+TD_USER=<your-username>
+TD_PASSWORD=<your-password>
+TD_DATABASE=lakehouse_demo
 
 # MinIO credentials (optional, defaults provided)
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
 
-# MySQL for Hive metastore (optional, defaults provided)
-MYSQL_ROOT_PASSWORD=your_root_password
+# MySQL for Hive metastore (required)
+MYSQL_ROOT_PASSWORD=<your-root-password>
 ```
 
 **Note:** See `.env.example` for all available configuration options.
 
-### 3. Start Services
+### 3. Install Python Dependencies
 
-Start MinIO and supporting services:
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Start Services
+
+Start MinIO and supporting services only:
 ```bash
 docker compose up -d minio minio-init
 ```
 
-Start all services (MinIO, Hive metastore, MySQL):
+Start all services (MinIO, Hive Metastore, MySQL, TPT):
 ```bash
 docker compose up -d
 ```
@@ -114,6 +127,14 @@ docker compose down
 - **Default Credentials:** root / configured password, hive / hive
 - **Database:** `metastore`
 
+### TTU (Teradata Tools & Utilities)
+
+**Purpose:** Provides the `bteq` binary used to run all Teradata SQL scripts. Started automatically by `run_demo.sh`.
+
+- **Image:** `teradata/tpt:latest`
+- **Volumes:** `./tpt/tbuild`, `./tpt/scripts`, `./data` (mounted into container)
+- **Note:** Requires `accept_license: "Y"` environment variable
+
 ## Architecture
 
 ```
@@ -125,16 +146,16 @@ docker compose down
 │  │  MinIO       │    │  Hive        │    │  MySQL       │  │
 │  │  (S3-Store)  │────│  Metastore   │────│  (Metadata)  │  │
 │  └──────────────┘    └──────────────┘    └──────────────┘  │
-│         ▲                    ▲                    ▲          │
-│         └────────────────────┴────────────────────┘          │
-│                     demo-net (bridge)                        │
-└─────────────────────────────────────────────────────────────┘
-           │
-           │ (Network / NOS foreign tables)
-           │
-┌─────────────────────────────────────────────────────────────┐
-│            Teradata Database (External)                     │
-│         (Configured via TD_HOST, TD_USER, etc.)            │
+│         ▲                    ▲                              │
+│         │                    │           ┌──────────────┐  │
+│         └────────────────────┼───────────│  TPT / BTEQ  │  │
+│                              │           │  (SQL runner) │  │
+│                     demo-net (bridge)    └──────┬───────┘  │
+└─────────────────────────────────────────────────┼───────────┘
+                                                   │ (BTEQ / port 1025)
+┌─────────────────────────────────────────────────┼───────────┐
+│            Teradata Database (External)          │           │
+│         (Configured via TD_HOST, TD_USER, etc.) ◄           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -142,15 +163,33 @@ docker compose down
 
 ```
 .
-├── README.md                 # This file
-├── docker-compose.yml        # Docker services definition
-├── .env.example              # Environment variables template
-├── .env                      # Local configuration (git-ignored)
-├── .gitignore               # Git ignore rules
-├── data/                     # Data files directory (empty)
-└── tpt/                      # Teradata Parallel Transporter
-    ├── scripts/             # TPT scripts and utilities
-    └── tbuild/              # TPT build artifacts
+├── README.md                    # This file
+├── docker-compose.yml           # Docker services definition
+├── .env.example                 # Environment variables template
+├── .env                         # Local configuration (git-ignored)
+├── requirements.txt             # Python dependencies
+├── run_demo.sh                  # End-to-end demo runner
+├── reset_demo.sh                # Tear down and reset for re-run
+├── docker/
+│   └── hive-metastore/          # Custom Hive Metastore image
+│       ├── Dockerfile
+│       └── hive-site.xml
+├── docs/
+│   ├── demo-walkthrough.md      # Step-by-step demo explanation
+│   └── setup-td-express-20.md  # TDExpress OTF configuration guide
+├── scripts/
+│   ├── generate_data.py         # Generates Parquet data → MinIO
+│   └── create_iceberg.py        # Creates Iceberg table in Hive Metastore
+├── sql/teradata/                # BTEQ scripts (run in order by run_demo.sh)
+│   ├── 00_setup_database.sql
+│   ├── 01_nos_authorization.sql
+│   ├── 02_nos_foreign_table.sql
+│   ├── 03_nos_read_validation.sql
+│   ├── 04_nos_writeback.sql
+│   ├── 05_otf_setup.sql
+│   └── 06_otf_read_validation.sql
+├── data/                        # Local data staging (mounted into TPT container)
+└── tpt/                         # TPT scripts and build artefacts (mounted into TPT container)
 ```
 
 ## Common Tasks
@@ -186,7 +225,17 @@ docker compose exec mysql mysql -u hive -p metastore
 docker compose stop minio
 ```
 
-### Remove All Data & Restart
+### Reset the Demo
+
+Drop all Teradata objects and MinIO data so the demo can be re-run cleanly:
+
+```bash
+./reset_demo.sh
+```
+
+### Full Environment Teardown
+
+Remove all containers and volumes (deletes all MinIO and MySQL data):
 
 ```bash
 docker compose down -v

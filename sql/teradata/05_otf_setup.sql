@@ -46,14 +46,17 @@ DROP DATALAKE lakehouse_iceberg;
 -- Restore normal error handling after the DROP
 .SET ERRORLEVEL 3807 SEVERITY 8
 
+-- Need to grant CREATE SERVER to DBC so that the DATALAKE can create a server object in TD_SERVER_DB.
+GRANT CREATE SERVER ON TD_SERVER_DB TO DBC WITH GRANT OPTION;
+
 CREATE DATALAKE lakehouse_iceberg
   EXTERNAL SECURITY DEFINER TRUSTED CATALOG hms_catalog_auth,
   EXTERNAL SECURITY DEFINER TRUSTED STORAGE minio_storage_auth
 USING
   CATALOG_TYPE         ('hive')
-  CATALOG_LOCATION     ('thrift://192.168.1.242:9083')
+  CATALOG_LOCATION     ('thrift://192.168.1.210:9083')
   STORAGE_LOCATION     ('s3://iceberg/warehouse/')
-  STORAGE_ENDPOINT     ('http://192.168.1.242:9000')
+  STORAGE_ENDPOINT     ('http://192.168.1.210:9000')
   S3_PATH_STYLE_ACCESS ('true')
   S3_SSL_ENABLED       ('false')
   STORAGE_REGION       ('us-east-1')

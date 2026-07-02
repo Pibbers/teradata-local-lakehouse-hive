@@ -103,6 +103,8 @@ services:
       minio-init:
         condition: service_completed_successfully
     environment:
+      SERVICE_NAME: "metastore"
+      DB_DRIVER: "mysql"
       HIVE_DB_HOSTNAME: "${HIVE_DB_HOSTNAME:-mysql}"
       HIVE_DB_NAME: "${HIVE_DB_NAME:-metastore}"
       HIVE_DB_USER: "${HIVE_DB_USER:-hive}"

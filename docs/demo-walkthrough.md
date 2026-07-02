@@ -50,6 +50,11 @@ The script verifies network reachability for all three systems the demo depends 
 
 If any check fails, verify the relevant `.env` variable (`HOST_IP`, `TD_HOST`) and that firewall rules allow connections from the Teradata system to your Docker host.
 
+> Important: Several Teradata SQL scripts in this demo hardcode the MinIO host and port because this Teradata version does not support endpoint override. Before running, ensure `HOST_IP` in `.env` matches the Docker host IP and update the following files if needed:
+> - `sql/teradata/02_nos_foreign_table.sql`
+> - `sql/teradata/04_nos_writeback.sql`
+> - `sql/teradata/05_otf_setup.sql`
+
 ---
 
 ## Stage 3 — TPT Container
@@ -253,5 +258,6 @@ Runs seven queries in sequence:
 ## Known Limitations
 
 - **OTF write-back is not supported** in this environment (TD 20.00.28.81). Writing from Teradata into an Iceberg table via `INSERT INTO lakehouse_iceberg.demo.sales_events` triggers a database engine bug. NOS write-back (`WRITE_NOS`) works correctly.
-- The MinIO host and port are hardcoded in `sql/teradata/02_nos_foreign_table.sql`, `04_nos_writeback.sql`, and `05_otf_setup.sql` because `WITH OVERRIDE LOCATION ENDPOINT` is not supported on this version. Update the IP if your `HOST_IP` changes.
+- The MinIO host and port are hardcoded in `sql/teradata/02_nos_foreign_table.sql`, `04_nos_writeback.sql`, and `05_otf_setup.sql` because `WITH OVERRIDE LOCATION ENDPOINT` is not supported on this version. Update these files if `HOST_IP` changes.
+- If the demo fails in step 04, verify the MinIO host:port embedded in `sql/teradata/04_nos_writeback.sql` matches the Docker host IP configured in `.env`.
 - The time travel query in Demo 06 uses a hardcoded timestamp. If you regenerate the Iceberg table, update the timestamp in `06_otf_read_validation.sql` to match the new snapshot times shown by `TD_SNAPSHOTS()`.

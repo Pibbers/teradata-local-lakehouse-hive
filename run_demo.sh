@@ -40,6 +40,21 @@ fail() { echo -e "${RED}  ✗  $*${RESET}"; exit 1; }
 info() { echo -e "${YELLOW}  →  $*${RESET}"; }
 hr()   { echo -e "\n${BOLD}═══════════════════════════════════════${RESET}"; }
 
+bteq_failure_hint() {
+  local file="$1"
+  case "$(basename "$file")" in
+    04_nos_writeback.sql)
+      echo "If the failure occurs here, verify the MinIO host:port embedded in sql/teradata/04_nos_writeback.sql matches HOST_IP and MINIO_API_PORT in .env."
+      ;;
+    02_nos_foreign_table.sql|05_otf_setup.sql)
+      echo "Verify the MinIO host:port embedded in $file matches HOST_IP and MINIO_API_PORT in .env."
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
 # ── BTEQ runner ───────────────────────────────────────────────
 # Writes the SQL file to /tmp inside the TPT container (always
 # writable), then runs BTEQ with .RUN FILE.  This avoids stdin
@@ -69,6 +84,11 @@ run_bteq() {
   if [[ $rc -le 4 ]]; then
     ok "$desc"
   else
+    local hint
+    hint="$(bteq_failure_hint "$file")"
+    if [[ -n "$hint" ]]; then
+      fail "$desc — BTEQ exited with code $rc. $hint"
+    fi
     fail "$desc — BTEQ exited with code $rc"
   fi
 }

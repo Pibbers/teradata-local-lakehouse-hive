@@ -186,9 +186,7 @@ cd /opt/teradata/tdotf/lib/scripts
 ### Step 2 — Apply All DBS Control Flags
 
 ```bash
-/usr/pde/bin/cnsrun -utility dbscontrol -commands "
-modify s=TRUE
-y
+dbscontrol
 
 # OTF feature flags
 modify internal 732=0
@@ -233,13 +231,12 @@ modify performance 58=1
 
 write
 quit
-"
 ```
 
 ### Step 3 — Restart Teradata
 
 ```bash
-tpareset -f
+tpareset -f now
 ```
 
 ### Step 4 — Configure DNS (if required)

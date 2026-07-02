@@ -30,7 +30,7 @@ SELECT * FROM WRITE_NOS (
     WHERE  region = 'NORTH'
   )
   USING
-  LOCATION   ('/s3/192.168.1.242:9000/raw/sales_events_north_export/')
+  LOCATION   ('/s3/192.168.1.210:9000/raw/sales_events_north_export/')
   AUTHORIZATION (minio_write_auth)
   STOREDAS   ('PARQUET')
   COMPRESSION ('SNAPPY')
@@ -53,7 +53,7 @@ CREATE FOREIGN TABLE lakehouse_demo.sales_events_nos_out_verify
 )
 USING
 (
-  LOCATION ('/s3/192.168.1.242:9000/raw/sales_events_north_export/')
+  LOCATION ('/s3/192.168.1.210:9000/raw/sales_events_north_export/')
   STOREDAS ('PARQUET')
 );
 

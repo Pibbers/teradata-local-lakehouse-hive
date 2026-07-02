@@ -37,7 +37,7 @@ CREATE FOREIGN TABLE lakehouse_demo.sales_events_nos
 )
 USING
 (
-  LOCATION    ('/s3/192.168.1.242:9000/raw/')
+  LOCATION    ('/s3/192.168.1.210:9000/raw/')
   PATHPATTERN ('$dir1/$dir2/$dir3/$dir4/$var5')
   STOREDAS    ('PARQUET')
 );

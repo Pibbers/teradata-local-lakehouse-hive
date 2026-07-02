@@ -19,7 +19,7 @@ This guide describes how to configure [**Teradata Express (TDExpress v20)**](htt
 
 ## Configuration Reference
 
-All DBS Control flags are set via `dbscontrol` / `cnsrun`. The sections below explain every flag, why it is needed, and what happens if it is left at its default value.
+All DBS Control flags are set via `dbscontrol`. The sections below explain every flag, why it is needed, and what happens if it is left at its default value.
 
 ### OTF Feature Flags
 
